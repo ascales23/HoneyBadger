@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Honeybadger Timer</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Timer">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1b24">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+  /* Layout: sticky master-clock bar on top, group-start panel, collapsible roster setup, then one big-button card per rider. */
+  :root {
+    --bg: #edf1f3;
+    --surface: #ffffff;
+    --surface-2: #f6f9fa;
+    --fg: #13202a;
+    --muted: #556773;
+    --line: #d2dce2;
+    --accent: #0a6586;
+    --accent-soft: #dcedf3;
+    --accent-fg: #ffffff;
+    --clock-bg: #0f1b24;
+    --clock-fg: #74e0a8;
+    --clock-label: #9db2bf;
+    --go: #167548;
+    --stop: #b4302a;
+    --warn: #9c5300;
+    --racing-bg: #ffedc9;
+    --racing-fg: #6b3c00;
+    --done-bg: #d6f0e1;
+    --done-fg: #0d5a35;
+    --idle-bg: #e3e9ed;
+    --idle-fg: #3f525e;
+    --font-display: 'Avenir Next Condensed', 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+    --font-body: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0c151c; --surface: #15232d; --surface-2: #101c24; --fg: #e7eef2; --muted: #93a6b3; --line: #27404f;
+      --accent: #5bbfdf; --accent-soft: #16384a; --accent-fg: #06222d;
+      --clock-bg: #070f14; --clock-fg: #74e0a8; --clock-label: #8aa0ae;
+      --go: #218653; --stop: #c8433b; --warn: #a85f08;
+      --racing-bg: #4a3510; --racing-fg: #ffd78a; --done-bg: #12392a; --done-fg: #8fe0b4; --idle-bg: #22343f; --idle-fg: #b7c8d2;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c151c; --surface: #15232d; --surface-2: #101c24; --fg: #e7eef2; --muted: #93a6b3; --line: #27404f;
+    --accent: #5bbfdf; --accent-soft: #16384a; --accent-fg: #06222d;
+    --clock-bg: #070f14; --clock-fg: #74e0a8; --clock-label: #8aa0ae;
+    --go: #218653; --stop: #c8433b; --warn: #a85f08;
+    --racing-bg: #4a3510; --racing-fg: #ffd78a; --done-bg: #12392a; --done-fg: #8fe0b4; --idle-bg: #22343f; --idle-fg: #b7c8d2;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  :root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.4 var(--font-body);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto;
+    height: env(safe-area-inset-top, 0px);
+    background: var(--clock-bg);
+    z-index: 10;
+  }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  h2 {
+    margin: 0;
+    font: 600 15px/1.2 var(--font-display);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  p { margin: 0; }
+  label { font-weight: 600; font-size: 15px; }
+
+  /* Clock bar */
+  .bar {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 5;
+    background: var(--clock-bg);
+    color: #fff;
+  }
+  .bar-in {
+    padding-block: 10px 10px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    max-width: 992px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .clock-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .clock-label { font: 600 12px/1 var(--font-display); letter-spacing: 0.16em; text-transform: uppercase; color: var(--clock-label); }
+  .clock { font: 600 38px/1.1 var(--font-mono); color: var(--clock-fg); font-variant-numeric: tabular-nums; }
+  .chip-btn {
+    min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid #3a5566;
+    background: transparent; color: #cfe0ea; font: 500 13px var(--font-body); cursor: pointer;
+  }
+  .chip-btn[data-state="on"] { border-color: #2e8a60; color: #8fe8bb; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip-btn.static { display: inline-flex; align-items: center; cursor: default; }
+  .counts { display: flex; flex-wrap: wrap; gap: 4px 16px; font: 13px var(--font-mono); color: var(--clock-label); font-variant-numeric: tabular-nums; }
+  .counts b { color: #fff; font-weight: 600; }
+
+  /* Page */
+  .wrap {
+    max-width: 992px;
+    margin: 0 auto;
+    padding-block: 16px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .hint { color: var(--muted); font-size: 14px; }
+  .msg { font-size: 14px; min-height: 20px; color: var(--muted); }
+  .msg.err { color: var(--stop); font-weight: 600; }
+
+  .btn {
+    min-height: 48px; padding: 0 18px; border: 0; border-radius: 10px;
+    font: 600 16px var(--font-body); color: #fff; cursor: pointer;
+    -webkit-user-select: none; user-select: none;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-accent { background: var(--accent); color: var(--accent-fg); }
+  .btn-go { background: var(--go); }
+  .btn-stop { background: var(--stop); }
+  .btn-warn { background: var(--warn); }
+  .btn-ghost { background: transparent; color: var(--fg); border: 1.5px solid var(--line); }
+  .btn-danger { background: transparent; color: var(--stop); border: 1.5px solid var(--stop); }
+  .btn[data-armed="1"] { background: var(--stop); color: #fff; border-color: var(--stop); }
+
+  /* Group starts */
+  .starts {
+    background: var(--accent-soft);
+    border-radius: 14px;
+    padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .group-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+  .group-btn {
+    flex: 1 1 150px; min-height: 68px; border: 0; border-radius: 12px; cursor: pointer;
+    background: var(--accent); color: var(--accent-fg);
+    display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 8px 16px;
+  }
+  .group-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .g-name { font: 700 22px/1.1 var(--font-display); letter-spacing: 0.02em; text-transform: uppercase; }
+  .g-sub { font-size: 13px; opacity: 0.9; }
+
+  /* Setup */
+  details.setup { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  details.setup summary {
+    min-height: 52px; display: flex; align-items: center; cursor: pointer;
+    font: 600 15px var(--font-display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+  }
+  .setup-body { display: flex; flex-direction: column; gap: 20px; padding-bottom: 18px; }
+  .field { display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  input[type="text"], textarea {
+    font: 16px var(--font-mono);
+    padding: 12px; min-height: 48px;
+    border: 1.5px solid var(--line); border-radius: 10px;
+    background: var(--surface); color: var(--fg);
+  }
+  #riderInput { text-transform: uppercase; width: 11em; max-width: 100%; letter-spacing: 0.06em; }
+  textarea { width: 100%; resize: vertical; }
+  input[type="file"] { font-size: 16px; max-width: 100%; color: var(--fg); }
+
+  /* Controls */
+  .controls { display: flex; flex-direction: column; gap: 10px; }
+  .chip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .chip-row .lead { font: 600 13px var(--font-display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); min-width: 44px; }
+  .pill {
+    min-height: 44px; padding: 0 16px; border-radius: 999px; cursor: pointer;
+    border: 1.5px solid var(--line); background: var(--surface); color: var(--fg);
+    font: 500 15px var(--font-body);
+  }
+  .pill[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+
+  /* Rider cards */
+  .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .rider {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "who act" "times times";
+    gap: 10px 12px; align-items: center;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+  }
+  .who { grid-area: who; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
+  .bib { font: 700 40px/1 var(--font-display); letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
+  .meta { display: flex; flex-direction: column; gap: 2px; }
+  .ini { font: 600 18px/1.1 var(--font-display); letter-spacing: 0.08em; }
+  .grp { font-size: 13px; color: var(--muted); }
+  .chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--idle-bg); color: var(--idle-fg); }
+  .chip.racing { background: var(--racing-bg); color: var(--racing-fg); }
+  .chip.done { background: var(--done-bg); color: var(--done-fg); }
+  .act { grid-area: act; }
+  .act .btn { min-width: 112px; min-height: 56px; font: 700 20px var(--font-display); letter-spacing: 0.06em; text-transform: uppercase; }
+  .times { grid-area: times; display: flex; flex-wrap: wrap; gap: 4px 18px; border-top: 1px dashed var(--line); padding-top: 8px; }
+  .t { display: flex; flex-direction: column; gap: 1px; }
+  .t .k { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .t .v { font: 400 13px var(--font-mono); font-variant-numeric: tabular-nums; }
+  .t .elapsed { font-weight: 600; font-size: 15px; color: var(--accent); }
+
+  .empty { border: 1.5px dashed var(--line); border-radius: 14px; padding: 24px 16px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+  .empty h3 { margin: 0; font: 700 22px var(--font-display); }
+
+  /* Results */
+  .results { display: flex; flex-direction: column; gap: 12px; }
+  .results textarea { min-height: 180px; font-size: 13px; }
+  .tools { display: flex; flex-wrap: wrap; gap: 10px; }
+  .fine { border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; pointer-events: none;
+    display: flex; justify-content: center;
+    padding-top: 12px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .toast span {
+    background: var(--fg); color: var(--bg); padding: 12px 18px; border-radius: 12px; font-weight: 600; font-size: 15px;
+    opacity: 0; transform: translateY(8px); transition: opacity .15s, transform .15s;
+  }
+  .toast.show span { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .toast span { transition: none; } }
+
+  @media (min-width: 720px) {
+    .rider { grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr) auto; grid-template-areas: "who times act"; }
+    .times { border-top: 0; padding-top: 0; flex-wrap: nowrap; }
+    .clock { font-size: 44px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-in">
+    <div class="clock-row">
+      <div>
+        <div class="clock-label">Master clock</div>
+        <div id="masterClock" class="clock">00:00:00.000</div>
+      </div>
+      <div class="chips">
+        <span id="offlineChip" class="chip-btn static" data-state="off">Checking offline</span>
+        <button type="button" id="wakeBtn" class="chip-btn" data-state="off">Keep screen awake</button>
+      </div>
+    </div>
+    <div id="counts" class="counts"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="starts" aria-labelledby="startsH">
+    <h2 id="startsH">Group starts</h2>
+    <p class="hint">Tap a group to start every waiting rider in it at the same instant.</p>
+    <div id="groupButtons" class="group-grid"></div>
+    <div><button type="button" id="undoLast" class="btn btn-ghost" hidden>Undo last start</button></div>
+  </section>
+
+  <details id="setup" class="setup">
+    <summary>Roster setup</summary>
+    <div class="setup-body">
+      <form id="addForm" class="field" autocomplete="off">
+        <label for="riderInput">Add one rider</label>
+        <div class="row">
+          <input type="text" id="riderInput" maxlength="7" placeholder="30654FG" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false">
+          <button type="submit" class="btn btn-accent">Add rider</button>
+        </div>
+        <p class="hint">7 characters: 2 for group, 3 for bib, 2 for initials.</p>
+        <p id="addMsg" class="msg" role="status"></p>
+      </form>
+
+      <div class="field">
+        <label for="csvFile">Upload a starter list (.csv or .txt)</label>
+        <input type="file" id="csvFile" accept=".csv,.txt,text/csv,text/plain">
+        <p class="hint">One rider per line. Only the first column is read.</p>
+      </div>
+
+      <div class="field">
+        <label for="pasteBox">Or paste riders, one per line</label>
+        <textarea id="pasteBox" rows="4" placeholder="30654FG&#10;30644GH&#10;10123AS" autocapitalize="characters" autocorrect="off" spellcheck="false"></textarea>
+        <div><button type="button" id="pasteAdd" class="btn btn-accent">Add pasted riders</button></div>
+        <p id="importMsg" class="msg" role="status"></p>
+      </div>
+    </div>
+  </details>
+
+  <section class="controls" aria-label="Filter and sort">
+    <div class="chip-row" id="filterRow"></div>
+    <div class="chip-row" id="sortRow"></div>
+  </section>
+
+  <ul id="riderList" class="list"></ul>
+
+  <div id="emptyState" class="empty" hidden>
+    <h3>No riders yet</h3>
+    <p class="hint">Open Roster setup above to upload your starter list or add a rider. Group start buttons appear here once riders are loaded.</p>
+    <button type="button" id="loadSample" class="btn btn-ghost">Load 12 sample riders to try it</button>
+  </div>
+
+  <section class="results" aria-labelledby="resH">
+    <h2 id="resH">Results</h2>
+    <p class="hint">Share opens the iPhone share sheet: Save to Files, AirDrop, Mail or Messages. Show text lets you copy the results instead.</p>
+    <div class="tools">
+      <button type="button" id="shareCsv" class="btn btn-accent">Share CSV file</button>
+      <button type="button" id="buildCsv" class="btn btn-ghost">Show text to copy</button>
+      <button type="button" id="copyCsv" class="btn btn-ghost" hidden>Copy CSV</button>
+    </div>
+    <textarea id="csvOut" readonly hidden aria-label="Results CSV"></textarea>
+  </section>
+
+  <section class="fine" aria-labelledby="resetH">
+    <h2 id="resetH">Between runs</h2>
+    <p class="hint">Times and roster save automatically on this device and browser. Use these only when you are done.</p>
+    <div class="tools">
+      <button type="button" id="resetTimes" class="btn btn-danger" data-label="Reset all times">Reset all times</button>
+      <button type="button" id="clearRoster" class="btn btn-danger" data-label="Clear roster">Clear roster</button>
+    </div>
+    <p id="saveNote" class="hint"></p>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"><span></span></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var KEY = 'honeybadger-timer-v23';
+  var ID_RE = /^[A-Z0-9]{7}$/;
+  var STATUSES = ['Not Started', 'Racing', 'Finished'];
+  var SAMPLE = ['30654FG','30644GH','10123AS','10765RT','20876JU','20435IU','30777RT','30443RE','20876HG','20999IU','10234GF','10459JH'];
+  var state = { riders: [], sortCol: null, sortDir: 1, filter: 'ALL', lastStart: [] };
+  var storageOK = true;
+  var lastTap = {};
+  var toastTimer = null;
+
+  function $(id) { return document.getElementById(id); }
+  function pad(n, w) { return String(n).padStart(w || 2, '0'); }
+
+  function fmtClock(ms) {
+    var d = new Date(ms);
+    return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '.' + pad(d.getMilliseconds(), 3);
+  }
+  function fmtElapsed(ms) {
+    ms = Math.max(0, Math.round(ms));
+    var h = Math.floor(ms / 3600000);
+    var m = Math.floor((ms % 3600000) / 60000);
+    var s = (ms % 60000) / 1000;
+    return pad(h) + 'h:' + pad(m) + 'm:' + s.toFixed(3).padStart(6, '0') + 's';
+  }
+
+  /* ---------- storage ---------- */
+  function validRider(r) {
+    if (!r || typeof r.id !== 'string' || !ID_RE.test(r.id)) return false;
+    if (STATUSES.indexOf(r.status) < 0) return false;
+    if (r.status !== 'Not Started' && typeof r.startMs !== 'number') return false;
+    if (r.status === 'Finished' && typeof r.finishMs !== 'number') return false;
+    return true;
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var s = JSON.parse(raw);
+      if (s && Array.isArray(s.riders)) {
+        state.riders = s.riders.filter(validRider);
+        state.sortCol = typeof s.sortCol === 'string' ? s.sortCol : null;
+        state.sortDir = s.sortDir === -1 ? -1 : 1;
+        state.filter = typeof s.filter === 'string' ? s.filter : 'ALL';
+        state.lastStart = Array.isArray(s.lastStart) ? s.lastStart : [];
+      }
+    } catch (e) {}
+  }
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(state));
+      storageOK = true;
+    } catch (e) {
+      storageOK = false;
+    }
+    var note = $('saveNote');
+    if (note) {
+      note.textContent = storageOK
+        ? 'Auto-save is working.'
+        : 'Auto-save is not available in this browser view. Do not close or reload this page during a race, and copy results often.';
+    }
+  }
+
+  /* ---------- helpers ---------- */
+  function toast(msg) {
+    var t = $('toast');
+    t.firstElementChild.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2400);
+  }
+  function makeRider(id) {
+    return {
+      id: id, group: id.slice(0, 2), bib: id.slice(2, 5), initials: id.slice(5, 7),
+      status: 'Not Started', startMs: null, finishMs: null
+    };
+  }
+  function find(id) {
+    for (var i = 0; i < state.riders.length; i++) if (state.riders[i].id === id) return state.riders[i];
+    return null;
+  }
+  function groups() {
+    var seen = {}, out = [];
+    state.riders.forEach(function (r) { if (!seen[r.group]) { seen[r.group] = 1; out.push(r.group); } });
+    return out.sort();
+  }
+  function tooSoon(id) {
+    var now = Date.now();
+    if (lastTap[id] && now - lastTap[id] < 700) return true;
+    lastTap[id] = now;
+    return false;
+  }
+
+  /* ---------- roster ---------- */
+  function importText(text) {
+    var added = 0, dup = 0, bad = 0;
+    String(text).split(/\r\n|\n|\r/).forEach(function (line) {
+      var token = line.split(/[,;\t]/)[0].replace(/["']/g, '').trim().toUpperCase();
+      if (!token) return;
+      if (!ID_RE.test(token)) { bad++; return; }
+      if (find(token)) { dup++; return; }
+      state.riders.push(makeRider(token));
+      added++;
+    });
+    save();
+    renderAll();
+    var msg = 'Added ' + added + ' rider' + (added === 1 ? '' : 's') + '.';
+    if (dup) msg += ' ' + dup + ' already in the list.';
+    if (bad) msg += ' ' + bad + ' skipped (need exactly 7 letters or digits).';
+    return msg;
+  }
+
+  /* ---------- race actions ---------- */
+  function startGroup(g) {
+    var now = Date.now(), ids = [];
+    state.riders.forEach(function (r) {
+      if (r.group === g && r.status === 'Not Started') {
+        r.status = 'Racing'; r.startMs = now; ids.push(r.id);
+      }
+    });
+    if (!ids.length) return;
+    state.lastStart = ids;
+    save(); renderAll();
+    toast('Started group ' + g + ': ' + ids.length + ' rider' + (ids.length === 1 ? '' : 's'));
+  }
+  function startRider(id) {
+    var r = find(id);
+    if (!r || r.status !== 'Not Started' || tooSoon(id)) return;
+    r.status = 'Racing'; r.startMs = Date.now();
+    state.lastStart = [id];
+    save(); renderAll();
+  }
+  function finishRider(id) {
+    var r = find(id);
+    if (!r || r.status !== 'Racing' || tooSoon(id)) return;
+    r.status = 'Finished'; r.finishMs = Date.now();
+    save(); renderAll();
+  }
+  function resumeRider(id) {
+    var r = find(id);
+    if (!r || r.status !== 'Finished' || tooSoon(id)) return;
+    r.status = 'Racing'; r.finishMs = null;
+    save(); renderAll();
+  }
+  function undoLastStart() {
+    var n = 0;
+    state.lastStart.forEach(function (id) {
+      var r = find(id);
+      if (r && r.status === 'Racing') { r.status = 'Not Started'; r.startMs = null; r.finishMs = null; n++; }
+    });
+    state.lastStart = [];
+    save(); renderAll();
+    toast('Undid start for ' + n + ' rider' + (n === 1 ? '' : 's'));
+  }
+
+  /* ---------- sorting ---------- */
+  var STATUS_ORDER = { 'Racing': 0, 'Not Started': 1, 'Finished': 2 };
+  function sortKey(r, col) { return col === 'status' ? STATUS_ORDER[r.status] : r[col]; }
+  function applySort() {
+    var col = state.sortCol, dir = state.sortDir;
+    if (!col) return;
+    state.riders.sort(function (a, b) {
+      var x = sortKey(a, col), y = sortKey(b, col);
+      if (x < y) return -1 * dir;
+      if (x > y) return 1 * dir;
+      if (a.group !== b.group) return a.group < b.group ? -1 : 1;
+      return a.bib < b.bib ? -1 : a.bib > b.bib ? 1 : 0;
+    });
+  }
+  function sortBy(col) {
+    if (state.sortCol === col) state.sortDir *= -1;
+    else { state.sortCol = col; state.sortDir = 1; }
+    applySort();
+    save(); renderAll();
+  }
+
+  /* ---------- rendering ---------- */
+  function renderCounts() {
+    var ns = 0, rc = 0, fn = 0;
+    state.riders.forEach(function (r) {
+      if (r.status === 'Not Started') ns++; else if (r.status === 'Racing') rc++; else fn++;
+    });
+    $('counts').innerHTML = '<span><b>' + ns + '</b> waiting</span><span><b>' + rc + '</b> racing</span><span><b>' + fn + '</b> finished</span>';
+  }
+
+  function renderGroups() {
+    var box = $('groupButtons'), gs = groups();
+    if (!gs.length) {
+      box.innerHTML = '<p class="hint">Group buttons appear here once riders are loaded.</p>';
+    } else {
+      box.innerHTML = gs.map(function (g) {
+        var total = 0, waiting = 0;
+        state.riders.forEach(function (r) {
+          if (r.group === g) { total++; if (r.status === 'Not Started') waiting++; }
+        });
+        return '<button type="button" class="group-btn" data-group="' + g + '"' + (waiting ? '' : ' disabled') + '>' +
+          '<span class="g-name">Start group ' + g + '</span>' +
+          '<span class="g-sub">' + waiting + ' waiting of ' + total + '</span></button>';
+      }).join('');
+    }
+    var n = 0;
+    state.lastStart.forEach(function (id) { var r = find(id); if (r && r.status === 'Racing') n++; });
+    var u = $('undoLast');
+    u.hidden = n === 0;
+    u.textContent = 'Undo last start (' + n + ' rider' + (n === 1 ? '' : 's') + ')';
+  }
+
+  function renderControls() {
+    var gs = groups();
+    if (state.filter !== 'ALL' && gs.indexOf(state.filter) < 0) state.filter = 'ALL';
+    var f = '<span class="lead">Show</span>';
+    f += '<button type="button" class="pill" data-filter="ALL" aria-pressed="' + (state.filter === 'ALL') + '">All (' + state.riders.length + ')</button>';
+    gs.forEach(function (g) {
+      var c = state.riders.filter(function (r) { return r.group === g; }).length;
+      f += '<button type="button" class="pill" data-filter="' + g + '" aria-pressed="' + (state.filter === g) + '">' + g + ' (' + c + ')</button>';
+    });
+    $('filterRow').innerHTML = f;
+
+    var cols = [['group', 'Group'], ['bib', 'Bib'], ['initials', 'Initials'], ['status', 'Status']];
+    var s = '<span class="lead">Sort</span>';
+    cols.forEach(function (c) {
+      var on = state.sortCol === c[0];
+      var arrow = on ? (state.sortDir === 1 ? ' ▲' : ' ▼') : '';
+      s += '<button type="button" class="pill" data-sort="' + c[0] + '" aria-pressed="' + on + '">' + c[1] + arrow + '</button>';
+    });
+    $('sortRow').innerHTML = s;
+    $('filterRow').parentNode.hidden = state.riders.length === 0;
+  }
+
+  function riderHtml(r) {
+    var chipCls = r.status === 'Racing' ? 'racing' : r.status === 'Finished' ? 'done' : '';
+    var elapsed;
+    if (r.status === 'Finished') elapsed = '<span class="v elapsed">' + fmtElapsed(r.finishMs - r.startMs) + '</span>';
+    else if (r.status === 'Racing') elapsed = '<span class="v elapsed" data-live data-start="' + r.startMs + '">' + fmtElapsed(Date.now() - r.startMs) + '</span>';
+    else elapsed = '<span class="v elapsed">N/A</span>';
+
+    var btn;
+    if (r.status === 'Not Started') btn = '<button type="button" class="btn btn-go" data-act="start" data-id="' + r.id + '">Start</button>';
+    else if (r.status === 'Racing') btn = '<button type="button" class="btn btn-stop" data-act="finish" data-id="' + r.id + '">Finish</button>';
+    else btn = '<button type="button" class="btn btn-warn" data-act="resume" data-id="' + r.id + '">Resume</button>';
+
+    return '<li class="rider">' +
+      '<div class="who"><div class="bib">' + r.bib + '</div>' +
+      '<div class="meta"><span class="ini">' + r.initials + '</span><span class="grp">Group ' + r.group + '</span></div>' +
+      '<span class="chip ' + chipCls + '">' + r.status + '</span></div>' +
+      '<div class="act">' + btn + '</div>' +
+      '<div class="times">' +
+      '<div class="t"><span class="k">Start</span><span class="v">' + (r.startMs ? fmtClock(r.startMs) : 'N/A') + '</span></div>' +
+      '<div class="t"><span class="k">Finish</span><span class="v">' + (r.finishMs ? fmtClock(r.finishMs) : 'N/A') + '</span></div>' +
+      '<div class="t"><span class="k">Elapsed</span>' + elapsed + '</div>' +
+      '</div></li>';
+  }
+
+  function renderList() {
+    var shown = state.riders.filter(function (r) { return state.filter === 'ALL' || r.group === state.filter; });
+    $('riderList').innerHTML = shown.map(riderHtml).join('');
+    $('emptyState').hidden = state.riders.length > 0;
+  }
+
+  function renderAll() {
+    renderCounts();
+    renderGroups();
+    renderControls();
+    renderList();
+  }
+
+  /* ---------- clock ---------- */
+  function tick() {
+    var now = Date.now();
+    $('masterClock').textContent = fmtClock(now);
+    var live = document.querySelectorAll('[data-live]');
+    for (var i = 0; i < live.length; i++) {
+      live[i].textContent = fmtElapsed(now - Number(live[i].getAttribute('data-start')));
+    }
+  }
+
+  /* ---------- results ---------- */
+  function buildCsv() {
+    var csv = 'Date,StartTime,FinishTime,ElapsedTime,RiderID\r\n';
+    state.riders.forEach(function (r) {
+      var d = new Date(r.startMs || Date.now()).toLocaleDateString();
+      var st = r.startMs ? fmtClock(r.startMs) : 'N/A';
+      var fi = r.finishMs ? fmtClock(r.finishMs) : 'N/A';
+      var el = (r.startMs && r.finishMs) ? fmtElapsed(r.finishMs - r.startMs) : 'N/A';
+      csv += '"' + d + '","' + st + '","' + fi + '","' + el + '","' + r.id + '"\r\n';
+    });
+    return csv;
+  }
+  function showCsv() {
+    if (!state.riders.length) { toast('No riders to export yet'); return; }
+    var out = $('csvOut');
+    out.value = buildCsv();
+    out.hidden = false;
+    $('copyCsv').hidden = false;
+    if (out.scrollIntoView) out.scrollIntoView({ block: 'nearest' });
+  }
+  function copyCsv() {
+    var out = $('csvOut');
+    function fallback() {
+      out.focus(); out.select();
+      try { out.setSelectionRange(0, out.value.length); } catch (e) {}
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      toast(ok ? 'Copied results' : 'Text selected. Tap Copy in the iOS menu.');
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(out.value).then(function () { toast('Copied results'); }, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  function csvName() {
+    var d = new Date();
+    return 'Race_Results_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' + pad(d.getHours()) + pad(d.getMinutes()) + '.csv';
+  }
+  function shareCsv() {
+    if (!state.riders.length) { toast('No riders to export yet'); return; }
+    var csv = buildCsv(), name = csvName();
+    try {
+      var file = new File([csv], name, { type: 'text/csv' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: name }).catch(function () {});
+        return;
+      }
+    } catch (e) {}
+    try {
+      var url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      var a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      toast('Saving ' + name);
+    } catch (e) {
+      showCsv();
+      toast('Sharing is not available here. Copy the text instead.');
+    }
+  }
+
+  /* ---------- two-tap confirm ---------- */
+  function armed(btn, action) {
+    btn.addEventListener('click', function () {
+      if (btn.getAttribute('data-armed') === '1') {
+        btn.removeAttribute('data-armed');
+        btn.textContent = btn.getAttribute('data-label');
+        clearTimeout(btn._t);
+        action();
+      } else {
+        btn.setAttribute('data-armed', '1');
+        btn.textContent = 'Tap again to confirm';
+        clearTimeout(btn._t);
+        btn._t = setTimeout(function () {
+          btn.removeAttribute('data-armed');
+          btn.textContent = btn.getAttribute('data-label');
+        }, 4000);
+      }
+    });
+  }
+
+  /* ---------- wake lock ---------- */
+  var wakeLock = null;
+  function setWake(mode) {
+    var b = $('wakeBtn');
+    b.setAttribute('data-state', mode === 'on' ? 'on' : 'off');
+    b.textContent = mode === 'on' ? 'Screen kept awake' : mode === 'unsupported' ? 'Set Auto-Lock to Never' : 'Keep screen awake';
+  }
+  function requestWake() {
+    if (!('wakeLock' in navigator)) { setWake('unsupported'); return; }
+    navigator.wakeLock.request('screen').then(function (lock) {
+      wakeLock = lock;
+      setWake('on');
+      lock.addEventListener('release', function () { wakeLock = null; setWake('off'); });
+    }, function () { setWake('off'); });
+  }
+
+  /* ---------- offline ---------- */
+  function setupOffline() {
+    var chip = $('offlineChip');
+    function set(txt, on) { chip.textContent = txt; chip.setAttribute('data-state', on ? 'on' : 'off'); }
+    if (!/^https?:$/.test(location.protocol)) { set('Running from a file', false); return; }
+    if (!('serviceWorker' in navigator)) { set('Offline not supported', false); return; }
+    navigator.serviceWorker.register('sw.js')
+      .then(function () { return navigator.serviceWorker.ready; })
+      .then(function () { set('Offline ready', true); })
+      .catch(function () {
+        var c = !!navigator.serviceWorker.controller;
+        set(c ? 'Offline ready' : 'Offline setup failed', c);
+      });
+  }
+
+  /* ---------- wiring ---------- */
+  function init() {
+    load();
+    applySort();
+    save();
+    $('setup').open = state.riders.length === 0;
+    renderAll();
+    tick();
+    setInterval(tick, 50);
+
+    $('addForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var input = $('riderInput'), msg = $('addMsg');
+      var id = input.value.trim().toUpperCase();
+      msg.className = 'msg err';
+      if (!ID_RE.test(id)) { msg.textContent = 'Enter exactly 7 characters: 2 group, 3 bib, 2 initials (example 30654FG).'; return; }
+      if (find(id)) { msg.textContent = id + ' is already in the list.'; return; }
+      state.riders.push(makeRider(id));
+      save(); renderAll();
+      input.value = '';
+      msg.className = 'msg';
+      msg.textContent = 'Added ' + id + '.';
+      input.focus();
+    });
+
+    $('csvFile').addEventListener('change', function (e) {
+      var file = e.target.files && e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        var msg = importText(ev.target.result);
+        $('importMsg').textContent = msg;
+        toast(msg);
+        e.target.value = '';
+      };
+      reader.onerror = function () { $('importMsg').textContent = 'Could not read that file. Try pasting the riders instead.'; };
+      reader.readAsText(file);
+    });
+
+    $('pasteAdd').addEventListener('click', function () {
+      var box = $('pasteBox');
+      if (!box.value.trim()) { $('importMsg').textContent = 'Paste at least one rider first.'; return; }
+      var msg = importText(box.value);
+      $('importMsg').textContent = msg;
+      box.value = '';
+      toast(msg);
+    });
+
+    $('loadSample').addEventListener('click', function () {
+      toast(importText(SAMPLE.join('\n')));
+      $('setup').open = false;
+    });
+
+    $('groupButtons').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-group]');
+      if (b && !b.disabled) startGroup(b.getAttribute('data-group'));
+    });
+    $('undoLast').addEventListener('click', undoLastStart);
+
+    $('filterRow').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-filter]');
+      if (b) { state.filter = b.getAttribute('data-filter'); save(); renderAll(); }
+    });
+    $('sortRow').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-sort]');
+      if (b) sortBy(b.getAttribute('data-sort'));
+    });
+
+    $('riderList').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-act]');
+      if (!b) return;
+      var id = b.getAttribute('data-id'), act = b.getAttribute('data-act');
+      if (act === 'start') startRider(id);
+      else if (act === 'finish') finishRider(id);
+      else if (act === 'resume') resumeRider(id);
+    });
+
+    $('buildCsv').addEventListener('click', showCsv);
+    $('shareCsv').addEventListener('click', shareCsv);
+    $('copyCsv').addEventListener('click', copyCsv);
+
+    armed($('resetTimes'), function () {
+      state.riders.forEach(function (r) { r.status = 'Not Started'; r.startMs = null; r.finishMs = null; });
+      state.lastStart = [];
+      save(); renderAll();
+      toast('All times reset');
+    });
+    armed($('clearRoster'), function () {
+      state.riders = []; state.lastStart = []; state.filter = 'ALL';
+      $('csvOut').hidden = true; $('copyCsv').hidden = true;
+      save(); renderAll();
+      $('setup').open = true;
+      toast('Roster cleared');
+    });
+
+    $('wakeBtn').addEventListener('click', requestWake);
+    setupOffline();
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') { tick(); renderList(); requestWake(); }
+    });
+    requestWake();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
