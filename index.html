@@ -8,55 +8,41 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Timer">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0f1b24">
+<meta name="theme-color" content="#2c3e50">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <style>
   /* Layout: sticky master-clock bar on top, group-start panel, collapsible roster setup, then one big-button card per rider. */
   :root {
-    --bg: #edf1f3;
+    --bg: #f4f6f7;
     --surface: #ffffff;
-    --surface-2: #f6f9fa;
-    --fg: #13202a;
-    --muted: #556773;
-    --line: #d2dce2;
-    --accent: #0a6586;
-    --accent-soft: #dcedf3;
+    --surface-2: #ecf0f1;
+    --fg: #333333;
+    --muted: #5d6b6c;
+    --line: #dddddd;
+    --accent: #3498db;
+    --accent-soft: #ecf0f1;
     --accent-fg: #ffffff;
-    --clock-bg: #0f1b24;
-    --clock-fg: #74e0a8;
-    --clock-label: #9db2bf;
-    --go: #167548;
-    --stop: #b4302a;
-    --warn: #9c5300;
-    --racing-bg: #ffedc9;
-    --racing-fg: #6b3c00;
-    --done-bg: #d6f0e1;
-    --done-fg: #0d5a35;
-    --idle-bg: #e3e9ed;
-    --idle-fg: #3f525e;
+    --add: #3498db;
+    --group: #8e44ad;
+    --export: #27ae60;
+    --elapsed: #2980b9;
+    --clock-bg: #2c3e50;
+    --clock-fg: #2ecc71;
+    --clock-label: #ecf0f1;
+    --go: #2ecc71;
+    --stop: #e74c3c;
+    --warn: #e67e22;
+    --racing-bg: #e67e22;
+    --racing-fg: #ffffff;
+    --done-bg: #27ae60;
+    --done-fg: #ffffff;
+    --idle-bg: #bdc3c7;
+    --idle-fg: #ffffff;
     --font-display: 'Avenir Next Condensed', 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
-    --font-body: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #0c151c; --surface: #15232d; --surface-2: #101c24; --fg: #e7eef2; --muted: #93a6b3; --line: #27404f;
-      --accent: #5bbfdf; --accent-soft: #16384a; --accent-fg: #06222d;
-      --clock-bg: #070f14; --clock-fg: #74e0a8; --clock-label: #8aa0ae;
-      --go: #218653; --stop: #c8433b; --warn: #a85f08;
-      --racing-bg: #4a3510; --racing-fg: #ffd78a; --done-bg: #12392a; --done-fg: #8fe0b4; --idle-bg: #22343f; --idle-fg: #b7c8d2;
-      color-scheme: dark;
-    }
-  }
-  :root[data-theme="dark"] {
-    --bg: #0c151c; --surface: #15232d; --surface-2: #101c24; --fg: #e7eef2; --muted: #93a6b3; --line: #27404f;
-    --accent: #5bbfdf; --accent-soft: #16384a; --accent-fg: #06222d;
-    --clock-bg: #070f14; --clock-fg: #74e0a8; --clock-label: #8aa0ae;
-    --go: #218653; --stop: #c8433b; --warn: #a85f08;
-    --racing-bg: #4a3510; --racing-fg: #ffd78a; --done-bg: #12392a; --done-fg: #8fe0b4; --idle-bg: #22343f; --idle-fg: #b7c8d2;
-    color-scheme: dark;
+    --font-body: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+    --font-mono: ui-monospace, Menlo, monospace;
   }
 
   * { box-sizing: border-box; }
@@ -112,13 +98,13 @@
   .clock-label { font: 600 12px/1 var(--font-display); letter-spacing: 0.16em; text-transform: uppercase; color: var(--clock-label); }
   .clock { font: 600 38px/1.1 var(--font-mono); color: var(--clock-fg); font-variant-numeric: tabular-nums; }
   .chip-btn {
-    min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid #3a5566;
-    background: transparent; color: #cfe0ea; font: 500 13px var(--font-body); cursor: pointer;
+    min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid #7f8c8d;
+    background: transparent; color: #ecf0f1; font: 500 13px var(--font-body); cursor: pointer;
   }
-  .chip-btn[data-state="on"] { border-color: #2e8a60; color: #8fe8bb; }
+  .chip-btn[data-state="on"] { border-color: #2ecc71; color: #2ecc71; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip-btn.static { display: inline-flex; align-items: center; cursor: default; }
-  .counts { display: flex; flex-wrap: wrap; gap: 4px 16px; font: 13px var(--font-mono); color: var(--clock-label); font-variant-numeric: tabular-nums; }
+  .counts { display: flex; flex-wrap: wrap; gap: 4px 16px; font: 13px var(--font-mono); color: #bdc3c7; font-variant-numeric: tabular-nums; }
   .counts b { color: #fff; font-weight: 600; }
 
   /* Page */
@@ -142,7 +128,8 @@
     -webkit-user-select: none; user-select: none;
   }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-accent { background: var(--accent); color: var(--accent-fg); }
+  .btn-accent { background: var(--add); color: #fff; }
+  .btn-export { background: var(--export); color: #fff; }
   .btn-go { background: var(--go); }
   .btn-stop { background: var(--stop); }
   .btn-warn { background: var(--warn); }
@@ -160,7 +147,7 @@
   .group-grid { display: flex; flex-wrap: wrap; gap: 10px; }
   .group-btn {
     flex: 1 1 150px; min-height: 68px; border: 0; border-radius: 12px; cursor: pointer;
-    background: var(--accent); color: var(--accent-fg);
+    background: var(--group); color: #fff;
     display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 8px 16px;
   }
   .group-btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -195,7 +182,7 @@
     border: 1.5px solid var(--line); background: var(--surface); color: var(--fg);
     font: 500 15px var(--font-body);
   }
-  .pill[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .pill[aria-pressed="true"] { background: var(--clock-bg); color: #fff; border-color: var(--clock-bg); }
 
   /* Rider cards */
   .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -220,7 +207,7 @@
   .t { display: flex; flex-direction: column; gap: 1px; }
   .t .k { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
   .t .v { font: 400 13px var(--font-mono); font-variant-numeric: tabular-nums; }
-  .t .elapsed { font-weight: 600; font-size: 15px; color: var(--accent); }
+  .t .elapsed { font-weight: 600; font-size: 15px; color: var(--elapsed); }
 
   .empty { border: 1.5px dashed var(--line); border-radius: 14px; padding: 24px 16px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
   .empty h3 { margin: 0; font: 700 22px var(--font-display); }
@@ -260,7 +247,7 @@
   <div class="bar-in">
     <div class="clock-row">
       <div>
-        <div class="clock-label">Master clock</div>
+        <div class="clock-label">Master clock <span style="opacity:.7">v2.4</span></div>
         <div id="masterClock" class="clock">00:00:00.000</div>
       </div>
       <div class="chips">
@@ -286,22 +273,22 @@
       <form id="addForm" class="field" autocomplete="off">
         <label for="riderInput">Add one rider</label>
         <div class="row">
-          <input type="text" id="riderInput" maxlength="7" placeholder="30654FG" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false">
+          <input type="text" id="riderInput" maxlength="7" placeholder="654FG30" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false">
           <button type="submit" class="btn btn-accent">Add rider</button>
         </div>
-        <p class="hint">7 characters: 2 for group, 3 for bib, 2 for initials.</p>
+        <p class="hint">7 characters: 3 for bib, 2 for initials, 2 for group (example 654FG30).</p>
         <p id="addMsg" class="msg" role="status"></p>
       </form>
 
       <div class="field">
         <label for="csvFile">Upload a starter list (.csv or .txt)</label>
         <input type="file" id="csvFile" accept=".csv,.txt,text/csv,text/plain">
-        <p class="hint">One rider per line. Only the first column is read.</p>
+        <p class="hint">One rider per line, bib then initials then group. Only the first column is read. Older group-first lists (30654FG) are converted automatically.</p>
       </div>
 
       <div class="field">
         <label for="pasteBox">Or paste riders, one per line</label>
-        <textarea id="pasteBox" rows="4" placeholder="30654FG&#10;30644GH&#10;10123AS" autocapitalize="characters" autocorrect="off" spellcheck="false"></textarea>
+        <textarea id="pasteBox" rows="4" placeholder="654FG30&#10;644GH30&#10;123AS10" autocapitalize="characters" autocorrect="off" spellcheck="false"></textarea>
         <div><button type="button" id="pasteAdd" class="btn btn-accent">Add pasted riders</button></div>
         <p id="importMsg" class="msg" role="status"></p>
       </div>
@@ -325,7 +312,7 @@
     <h2 id="resH">Results</h2>
     <p class="hint">Share opens the iPhone share sheet: Save to Files, AirDrop, Mail or Messages. Show text lets you copy the results instead.</p>
     <div class="tools">
-      <button type="button" id="shareCsv" class="btn btn-accent">Share CSV file</button>
+      <button type="button" id="shareCsv" class="btn btn-export">Share CSV file</button>
       <button type="button" id="buildCsv" class="btn btn-ghost">Show text to copy</button>
       <button type="button" id="copyCsv" class="btn btn-ghost" hidden>Copy CSV</button>
     </div>
@@ -349,10 +336,10 @@
 (function () {
   'use strict';
 
-  var KEY = 'honeybadger-timer-v23';
+  var KEY = 'honeybadger-timer-v24';
   var ID_RE = /^[A-Z0-9]{7}$/;
   var STATUSES = ['Not Started', 'Racing', 'Finished'];
-  var SAMPLE = ['30654FG','30644GH','10123AS','10765RT','20876JU','20435IU','30777RT','30443RE','20876HG','20999IU','10234GF','10459JH'];
+  var SAMPLE = ['654FG30','644GH30','123AS10','765RT10','876JU20','435IU20','777RT30','443RE30','876HG20','999IU20','234GF10','459JH10'];
   var state = { riders: [], sortCol: null, sortDir: 1, filter: 'ALL', lastStart: [] };
   var storageOK = true;
   var lastTap = {};
@@ -418,11 +405,18 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2400);
   }
-  function makeRider(id) {
-    return {
-      id: id, group: id.slice(0, 2), bib: id.slice(2, 5), initials: id.slice(5, 7),
-      status: 'Not Started', startMs: null, finishMs: null
-    };
+  // Entry order is bib (3), initials (2), group (2), for example 654FG30.
+  // Older group-first IDs such as 30654FG are still recognised and converted.
+  function parseId(raw) {
+    var t = String(raw).trim().toUpperCase();
+    if (!ID_RE.test(t)) return null;
+    var bib, ini, grp;
+    if (/^[0-9]{3}[A-Z]{2}[A-Z0-9]{2}$/.test(t)) { bib = t.slice(0, 3); ini = t.slice(3, 5); grp = t.slice(5, 7); }
+    else { grp = t.slice(0, 2); bib = t.slice(2, 5); ini = t.slice(5, 7); }
+    return { id: bib + ini + grp, bib: bib, initials: ini, group: grp };
+  }
+  function makeRider(p) {
+    return { id: p.id, bib: p.bib, initials: p.initials, group: p.group, status: 'Not Started', startMs: null, finishMs: null };
   }
   function find(id) {
     for (var i = 0; i < state.riders.length; i++) if (state.riders[i].id === id) return state.riders[i];
@@ -446,9 +440,10 @@
     String(text).split(/\r\n|\n|\r/).forEach(function (line) {
       var token = line.split(/[,;\t]/)[0].replace(/["']/g, '').trim().toUpperCase();
       if (!token) return;
-      if (!ID_RE.test(token)) { bad++; return; }
-      if (find(token)) { dup++; return; }
-      state.riders.push(makeRider(token));
+      var p = parseId(token);
+      if (!p) { bad++; return; }
+      if (find(p.id)) { dup++; return; }
+      state.riders.push(makeRider(p));
       added++;
     });
     save();
@@ -565,7 +560,7 @@
     });
     $('filterRow').innerHTML = f;
 
-    var cols = [['group', 'Group'], ['bib', 'Bib'], ['initials', 'Initials'], ['status', 'Status']];
+    var cols = [['bib', 'Bib'], ['initials', 'Initials'], ['group', 'Group'], ['status', 'Status']];
     var s = '<span class="lead">Sort</span>';
     cols.forEach(function (c) {
       var on = state.sortCol === c[0];
@@ -750,15 +745,15 @@
     $('addForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var input = $('riderInput'), msg = $('addMsg');
-      var id = input.value.trim().toUpperCase();
+      var p = parseId(input.value);
       msg.className = 'msg err';
-      if (!ID_RE.test(id)) { msg.textContent = 'Enter exactly 7 characters: 2 group, 3 bib, 2 initials (example 30654FG).'; return; }
-      if (find(id)) { msg.textContent = id + ' is already in the list.'; return; }
-      state.riders.push(makeRider(id));
+      if (!p) { msg.textContent = 'Enter exactly 7 characters: 3 bib, 2 initials, 2 group (example 654FG30).'; return; }
+      if (find(p.id)) { msg.textContent = p.id + ' is already in the list.'; return; }
+      state.riders.push(makeRider(p));
       save(); renderAll();
       input.value = '';
       msg.className = 'msg';
-      msg.textContent = 'Added ' + id + '.';
+      msg.textContent = 'Added ' + p.id + '.';
       input.focus();
     });
 
